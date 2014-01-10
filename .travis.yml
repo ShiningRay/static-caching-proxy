@@ -1,0 +1,7 @@
+language: node_js
+node_js:
+  - '0.8'
+  - '0.10'
+before_install:
+  - currentfolder=${PWD##*/}
+  - if [ "$currentfolder" != 'static-caching-proxy' ]; then cd .. && eval "mv $currentfolder static-caching-proxy" && cd static-caching-proxy; fi
