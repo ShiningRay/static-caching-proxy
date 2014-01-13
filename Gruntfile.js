@@ -3,7 +3,7 @@
 
 var host = 'localhost';
 var serverPorts = {
-  client: '3000',
+  client: '8000',
   debug: '5858',
   inspector: '8080'
 };

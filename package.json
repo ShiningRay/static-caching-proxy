@@ -4,7 +4,8 @@
   "description": "",
   "keywords": [
     "node",
-    "js"
+    "js",
+    "proxy"
   ],
   "bugs": "https://github.com/ShiningRay/static-caching-proxy/issues",
   "author": {
@@ -20,11 +21,16 @@
   "main": "server/index.js",
   "dependencies": {
     "http-proxy": "~0.10.4",
-    "node-http-cache": "git://github.com/d11wtq/node-http-cache.git",
     "sequelize": "~2.0.0-beta.7",
     "mkdirp": "~0.3.5",
     "stream-buffers": "~0.2.5",
-    "when": "~2.7.1"
+    "when": "~2.7.1",
+    "underscore": "~1.5.2",
+    "trumpet": "~1.6.3",
+    "sqlite3": "~2.1.19",
+    "checksum": "~0.1.1",
+    "machina": "~0.3.4",
+    "moment": "~2.5.0"
   },
   "devDependencies": {
     "grunt": "~0.4.1",
