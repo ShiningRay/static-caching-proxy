@@ -5,13 +5,13 @@ fs             = require 'fs'
 pathUtil       = require 'path'
 #Sequelize     = require("sequelize")
 util           = require 'util'
-url            = require('url')
+urlUtil=url    = require('url')
 streamBuffers  = require("stream-buffers")
 nodefn         = require("when/node/function")
 {CacheStore}   = require './cache'
 {EventEmitter} = require 'events'
 Stream         = require 'stream'
-
+{fork}         = require 'child_process'
 target =
   hostname: 'nodejs.org',
   port: 80,
@@ -37,23 +37,28 @@ store = (url, res, options={}) ->
     res.on 'finish',  ->
       console.log 'finished Upstream Response'
 
-      setTimeout ->
+      process.nextTick ->
         expires = res.getHeader('expires')
         #console.log res.getHeader('cache-control')
         last_modified = res.getHeader('last-modified') || res.getHeader('date')
         etag = last_modified = res.getHeader('etag')
+        content_type = res.getHeader('content-type')
+        content = tmpBuffer.getContents()
+        console.log content
 
-        CacheStore.write url, tmpBuffer.getContents(), {
+        CacheStore.write url, content , {
           expires_at: expires,
           created_at: last_modified
           etag: etag
+          content_type: content_type
+          length: res.getHeader('content-length')
           }, (err) ->
           #throw err if err
           tmpBuffer.destroy()
           if err
             console.log err
           else
-            console.log 'finish writing to cache file'
+            console.log 'finish writing to cache file', url
   else
     CacheStore.write url, res, options, (err) ->
       #throw err if err
@@ -63,42 +68,46 @@ store = (url, res, options={}) ->
         console.log 'finish writing to cache file'
       res.destory() if res.destory
 
-revalidate = (req, entry) ->
-  # req.setHeader 'If-Modified-Since'
-  console.log 'revalidating', req.url
-  p = url.parse(req.url)
+revalidate = (url, entry, headers={}) ->
+  console.log 'revalidating', url
+  p = urlUtil.parse(url)
+  headers = _.clone(headers)
   options = _.defaults({
     method: 'GET',
-    headers: req.headers,
+    headers: headers,
     path: p.path
   }, target)
 
   if entry and entry.isValid()
     if entry.options.created_at
-      options.headers['If-Modified-Since'] = \
+      headers['If-Modified-Since'] = \
         entry.options.created_at.toDate().toUTCString()
 
-    options.headers['If-None-Match'] = entry.options.etag if entry.options.etag
+    headers['If-None-Match'] = entry.options.etag if entry.options.etag
   else
-    options.headers['cache-control'] = 'no-cache'
+    headers['cache-control'] = 'no-cache'
+
   console.log options
+
   outgoing = http.request options, (upstream) ->
-    console.log 'revalidate result', req.url, upstream.statusCode
+    console.log 'revalidate result', url, upstream.statusCode
     if upstream.statusCode == 304
       # not modified
       console.log outgoing.path, 'not modified'
     else
       tmpBuffer = new streamBuffers.WritableStreamBuffer
-      upstream.resume()
       upstream.pipe tmpBuffer
+      upstream.resume()
       upstream.on 'end', ->
         content = tmpBuffer.getContents()
         #console.log(content.toString())
         h = upstream.headers
-        store req.url, content,
+        store url, content,
           created_at: h['last-modified'] || h.date
           expires_at: h.expires
           etag: h.etag
+          content_type: h['content-type']
+          length: h['content-length']
 
         tmpBuffer.destroy()
       .on 'error', (err) ->
@@ -131,18 +140,46 @@ debug = (proxy) ->
 cachable = (req) ->
   req.method is 'GET'
 
+
+startPrefetcher = ->
+  options = {}
+  if process.execArgv.indexOf('--debug') > -1
+    options.execArgv = ['--debug=5859']
+  child = fork __dirname+'/prefetcher.js', [], options
+
+  CacheStore.on 'stored', (key, entry) ->
+    if child.connected
+      if (entry.options.content_type || key).indexOf('html') > -1
+        # only analyze html
+        CacheStore.cachePath key, (path) ->
+          if target.port == 80
+            domain = target.hostname
+          else
+            domain = "#{target.hostname}:#{target.port}"
+          child.send
+            path: path
+            url: "http://#{domain}#{key}"
+
+  child.on 'message', (url) ->
+    console.log 'from child', url
+    u = urlUtil.parse(url)
+    # only prefetch the things we are interested in
+    if u.hostname == target.hostname
+      CacheStore.fetch u.pathname, (err, entry) ->
+        revalidate(url, entry)
+
 proxyServer = httpProxy.createServer((req, res, proxy) ->
   if cachable(req)
     console.log 'receive requst', req.url
     CacheStore.fetch req.url, (err, entry) ->
       #throw err if err
       console.log 'find cache', err
-      data = entry?.value
-      if not err and data.length > 0
+      if not err and entry
         # hit
-        res.end(data)
+        console.log 'cache', entry.key, entry.options
+        res.end(entry.value)
         if entry and entry.isExpired()
-          revalidate(req, entry)
+          revalidate(req.url, entry, req.headers)
         else
           console.log 'not expired', entry.key
         proxyServer.emit 'hit', req, data
@@ -162,9 +199,5 @@ proxyServer = httpProxy.createServer((req, res, proxy) ->
 .on 'miss', (req) ->
   console.log 'miss', req.url
 
-orignalServer = http.createServer( (req, res) ->
-  res.writeHead(200, { 'Content-Type': 'text/plain' })
-  res.write("request successfully proxied: #{req.url}
-    #{JSON.stringify(req.headers, true, 2)}")
-  res.end()
-).listen 9000
+startPrefetcher()
+
