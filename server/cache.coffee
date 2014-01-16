@@ -8,6 +8,7 @@ nodefn         = require 'when/node/function'
 moment         = require('moment')
 {EventEmitter} = require 'events'
 ReadWriteLock = require('rwlock')
+querystring = require 'querystring'
 cacheBase = '/tmp/cache'
 exports.cachePath = cachePath = (path, next) ->
 
@@ -16,6 +17,7 @@ exports.cachePath = cachePath = (path, next) ->
     path = pathUtil.join path, 'index.html'
   path = pathUtil.join cacheBase, path
   path = path.replace(/[:?"*<>|]/g, '_') # remove illegal character under windows
+  path = querystring.unescape(path)
   dir = pathUtil.dirname path
   name = pathUtil.basename path
   # ext = pathUtil.extname name
