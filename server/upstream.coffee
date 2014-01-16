@@ -1,10 +1,10 @@
-machina = require 'machina'
-{EventEmitter} = require 'events'
+_ = require('underscore')
+machina = require('machina')(_)
 
-class Upstream extends EventEmitter
-  initialState: "up"
+Upstream = machina.Fsm.extend
+  initialState: 'online'
   states:
-    down:
-      start: ->
-    up:
-      start: ->
+    online:
+      _onEnter: ->
+    offine:
+      _onEnter: ->
