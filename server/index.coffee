@@ -15,6 +15,7 @@ Stream         = require 'stream'
 target =
   hostname: 'nodejs.org',
   port: 80,
+storeHook = () ->
 
 store = (url, res, options={}) ->
   if res instanceof Stream
@@ -87,8 +88,6 @@ revalidate = (url, entry, headers={}) ->
   else
     headers['cache-control'] = 'no-cache'
 
-  console.log options
-
   outgoing = http.request options, (upstream) ->
     console.log 'revalidate result', url, upstream.statusCode
     if upstream.statusCode == 304
@@ -96,8 +95,8 @@ revalidate = (url, entry, headers={}) ->
       console.log outgoing.path, 'not modified'
     else
       tmpBuffer = new streamBuffers.WritableStreamBuffer
-      upstream.pipe tmpBuffer
       upstream.resume()
+      upstream.pipe tmpBuffer
       upstream.on 'end', ->
         content = tmpBuffer.getContents()
         #console.log(content.toString())
@@ -126,20 +125,8 @@ pass = (req, res, proxy) ->
     port: target.port
     buffer: buffer)
 
-debug = (proxy) ->
-  proxy.on('start', (req, res, target) ->
-    console.log 'starting', req.url
-  ).on( 'forward', (req, res, forward) ->
-    console.log 'forwarding', req.url
-  ).on('proxyResponse', (req, res, upstream) ->
-    console.log 'response', req.url
-  ).on('end', (req, res, upstream) ->
-    console.log 'ending', req.url
-  )
-
 cachable = (req) ->
   req.method is 'GET'
-
 
 startPrefetcher = ->
   options = {}
@@ -173,10 +160,9 @@ proxyServer = httpProxy.createServer((req, res, proxy) ->
     console.log 'receive requst', req.url
     CacheStore.fetch req.url, (err, entry) ->
       #throw err if err
-      console.log 'find cache', err
       if not err and entry
         # hit
-        console.log 'cache', entry.key, entry.options
+        console.log 'find cache', entry.key
         res.end(entry.value)
         if entry and entry.isExpired()
           revalidate(req.url, entry, req.headers)
@@ -187,6 +173,9 @@ proxyServer = httpProxy.createServer((req, res, proxy) ->
         # revalidate(req, proxy) if outdated # now > expired_at
       else
         # miss
+        # don't proxy cache headers
+        delete req.headers['if-modified-since']
+        delete req.headers['if-none-match']
         store(req.url, res)  # hook to store
         pass(req, res, proxy)
         proxyServer.emit 'miss', req
@@ -199,5 +188,6 @@ proxyServer = httpProxy.createServer((req, res, proxy) ->
 .on 'miss', (req) ->
   console.log 'miss', req.url
 
+# aaa
 startPrefetcher()
 

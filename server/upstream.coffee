@@ -1,6 +1,7 @@
 machina = require 'machina'
+{EventEmitter} = require 'events'
 
-Upstream = machina.Fsm.extends
+class Upstream extends EventEmitter
   initialState: "up"
   states:
     down:

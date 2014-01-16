@@ -10,6 +10,7 @@ moment         = require('moment')
 
 cacheBase = '/tmp/cache'
 exports.cachePath = cachePath = (path, next) ->
+
   path = '/' if path == ''
   if path.substr(path.length-1) == '/'
     path = pathUtil.join path, 'index.html'
@@ -31,12 +32,21 @@ exports.setBase = (dir) ->
 writeFile = nodefn.lift fs.writeFile
 readFile = nodefn.lift fs.readFile
 
+#hacks for fs-mock
+if fs.constructor.toString() != 'function Object() { [native code] }'
+  writeFile = (f) ->
+    w = nodefn.lift fs.writeFile
+    w.call(fs, f)
+  readFile = (f) ->
+    r = nodefn.lift fs.readFile
+    r.call(fs, f)
 defaultExpiresIn = moment.duration("30:00")
 
 class CacheEntry
-  constructor: (@key, @value, @options) ->
-    @options.created_at = moment @options.created_at
-    @options.expires_at?= moment(@options.created_at).add(defaultExpiresIn)
+  constructor: (@key, @value, @options={}) ->
+    @options.created_at ?= moment @options.created_at
+    unless moment.isMoment(@options.expires_at)
+      @options.expires_at = moment(@options.expires_at)
     if @options.expires_at.isBefore()
       @options.expires_at = moment().add(defaultExpiresIn)
     @options.length = parseInt(@options.length)
@@ -54,6 +64,7 @@ class CacheEntry
 
 CacheStore = new EventEmitter
 exports.CacheStore = CacheStore
+exports.CacheEntry = CacheEntry
 _.extend CacheStore,
   locks: {}
   waiters: {}
@@ -64,7 +75,8 @@ _.extend CacheStore,
     callbacks.call(cachePath, key).then (path) ->
       w.all([
         readFile(path),
-        readFile("#{path}.meta")]).then (all) ->
+        readFile("#{path}.meta")
+      ]).then (all) ->
         meta = JSON.parse(all[1])
         meta.created_at = moment(meta.created_at)
         meta.expires_at = moment meta.expires_at
