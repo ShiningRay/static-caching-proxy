@@ -15,6 +15,7 @@ exports.cachePath = cachePath = (path, next) ->
   if path.substr(path.length-1) == '/'
     path = pathUtil.join path, 'index.html'
   path = pathUtil.join cacheBase, path
+  path = path.replace(/[:?"*<>|]/, '') # remove illegal character under windows
   dir = pathUtil.dirname path
   name = pathUtil.basename path
   # ext = pathUtil.extname name

@@ -150,10 +150,12 @@ startPrefetcher = ->
   child.on 'message', (url) ->
     # console.log 'from child', url
     u = urlUtil.parse(url)
+    delete u.hash
+    url = urlUtil.format(u)
     # only prefetch the things we are interested in
     if u.hostname == target.hostname
-      CacheStore.fetch u.pathname, (err, entry) ->
-        if err or !entry or entry.isExpired()
+      CacheStore.fetch url, (err, entry) ->
+        if err or !entry
           revalidate(url, entry)
 
 
