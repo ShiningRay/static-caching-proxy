@@ -169,6 +169,11 @@ unless module.parent
         if not err and entry
           # hit
           console.log 'find cache', entry.key
+          res.setHeader('Content-Type', entry.options.content_type) if entry.options.content_type
+          res.setHeader('Etag', entry.options.etag) if entry.options.etag
+          res.setHeader('Date', entry.options.created_at.toDate().toUTCString()) if entry.options.created_at
+          res.setHeader('Content-Length', entry.value.length)
+          res.statusCode = 200
           res.end(entry.value)
           if entry and entry.isExpired()
             revalidate(url, entry, req.headers)
