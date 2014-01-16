@@ -15,7 +15,7 @@ exports.cachePath = cachePath = (path, next) ->
   if path.substr(path.length-1) == '/'
     path = pathUtil.join path, 'index.html'
   path = pathUtil.join cacheBase, path
-  path = path.replace(/[:?"*<>|]/, '') # remove illegal character under windows
+  path = path.replace(/[:?"*<>|]/g, '_') # remove illegal character under windows
   dir = pathUtil.dirname path
   name = pathUtil.basename path
   # ext = pathUtil.extname name
@@ -24,7 +24,8 @@ exports.cachePath = cachePath = (path, next) ->
   # if ext == '.'
   #   path += 'html'
   mkdirp dir, (err, made) ->
-    throw err if err
+    #throw err if err
+    console.log if err
     next path
 
 exports.setBase = (dir) ->

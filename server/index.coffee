@@ -13,7 +13,7 @@ nodefn         = require("when/node/function")
 Stream         = require 'stream'
 {fork}         = require 'child_process'
 target =
-  hostname: 'nodejs.org',
+  hostname: 'buy.rongyi.com',
   port: 80,
 
 formatUrl = (url) ->
@@ -180,13 +180,15 @@ unless module.parent
         else
           # miss
           # don't proxy cache headers
+          req.headers['host'] = "#{target.hostname}:#{target.port||80}"
+          delete req.headers['accept-encoding']
           delete req.headers['if-modified-since']
           delete req.headers['if-none-match']
           storeHook(url, res)  # hook to store
           pass(req, res, proxy)
           proxyServer.emit 'miss', req
     else
-      pass()
+      pass(req, res, proxy)
   ).listen(8000, 'localhost').on 'upgrade', (req, socket, head) ->
     proxyServer.proxy.proxyWebSocketRequest(req, socket, head)
   .on 'hit', (req, data) ->
