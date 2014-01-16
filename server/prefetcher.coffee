@@ -31,7 +31,7 @@ exports.prefetch = prefetch = (baseurl, path, cb) ->
   tr.on 'end', ->
     # debugger
     queue = unique(queue)
-    #console.log(queue)
+
     cb(null, urlUtil.resolve(baseurl, i) for i in queue.filter(isLink))
   tr.on 'error', cb
   fs.createReadStream(path).pipe(tr)

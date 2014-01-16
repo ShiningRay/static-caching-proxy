@@ -7,7 +7,7 @@ callbacks      = require 'when/callbacks'
 nodefn         = require 'when/node/function'
 moment         = require('moment')
 {EventEmitter} = require 'events'
-
+ReadWriteLock = require('rwlock')
 cacheBase = '/tmp/cache'
 exports.cachePath = cachePath = (path, next) ->
 
@@ -65,6 +65,11 @@ class CacheEntry
 CacheStore = new EventEmitter
 exports.CacheStore = CacheStore
 exports.CacheEntry = CacheEntry
+lock = new ReadWriteLock
+readLock = callbacks.lift (key, cb) ->
+  lock.readLock(key, cb)
+writeLock = callbacks.lift (key, cb) ->
+  lock.writeLock(key, cb)
 _.extend CacheStore,
   locks: {}
   waiters: {}
@@ -74,39 +79,50 @@ _.extend CacheStore,
     self = this
     callbacks.call(cachePath, key).then (path) ->
       w.all([
+        # readLock(path),
         readFile(path),
         readFile("#{path}.meta")
       ]).then (all) ->
-        meta = JSON.parse(all[1])
+        [value, meta] = all
+        # [release, value, meta] = all
+        meta = JSON.parse(meta)
         meta.created_at = moment(meta.created_at)
         meta.expires_at = moment meta.expires_at
-        entry = new CacheEntry(key, all[0], meta)
+        entry = new CacheEntry(key, value, meta)
         # for waiting in waiters[key]
         #   waiting.got key, entry
+        # release()
         process.nextTick( -> self.emit('fetched', key, entry))
         entry
   fetch: (key, got) ->
-    @fetchQ(key).then (entry) ->
-      got(null, entry)
-    , (err) ->
-      got(err)
+    lock.readLock key, (release) =>
+      @fetchQ(key).then (entry) ->
+        release()
+        got(null, entry)
+      , (err) ->
+        release()
+        got(err)
 
   storeQ: (key, entry) ->
     self = this
     callbacks.call(cachePath, key).then (path) ->
       w.all([
+        # writeLock(path),
         writeFile(path, entry.value),
         writeFile("#{path}.meta", JSON.stringify(entry.options))
       ]).then((all) ->
         process.nextTick( -> self.emit('stored', key, entry))
-        all
+        all[0]() if typeof all[0] is 'function'
       )
   store: (key, entry, written) ->
     written ?= ->
-    @storeQ(key, entry).then (all) ->
-      written(null, all[0], all[1])
-    , (err) ->
-      written(err)
+    lock.writeLock key, (release) =>
+      @storeQ(key, entry).then (all) ->
+        release()
+        written(null)
+      , (err) ->
+        release()
+        written(err)
   writeQ: (key, value, options={}) ->
     @storeQ(key, new CacheEntry(key, value, options))
 

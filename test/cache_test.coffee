@@ -44,6 +44,9 @@ describe 'CacheStore', ->
           done()
         catch e
           done(e)
+  # describe '#write', (done) ->
+  #   @timeout(10000)
+
 
 describe 'CacheEntry', ->
   CacheEntry = require( '../server/cache').CacheEntry

@@ -28,7 +28,8 @@
     "trumpet": "~1.6.3",
     "checksum": "~0.1.1",
     "machina": "~0.3.4",
-    "moment": "~2.5.0"
+    "moment": "~2.5.0",
+    "rwlock": "~4.0.0"
   },
   "devDependencies": {
     "grunt": "~0.4.1",
