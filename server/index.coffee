@@ -42,7 +42,9 @@ storeHook = (url, res, options={}) ->
 
   res.on 'finish',  ->
     console.log 'finished Upstream Response'
-
+    if res.statusCode isnt 200
+      console.log 'response error'
+      return
     process.nextTick ->
       expires = res.getHeader('expires')
       #console.log res.getHeader('cache-control')
@@ -101,6 +103,9 @@ revalidate = (url, entry, headers={}) ->
       upstream.resume()
       upstream.pipe tmpBuffer
       upstream.on 'end', ->
+        if upstream.statusCode isnt 200
+          console.log 'response error'
+          return
         content = tmpBuffer.getContents()
         #console.log(content.toString())
         h = upstream.headers
@@ -173,6 +178,7 @@ unless module.parent
           res.setHeader('Etag', entry.options.etag) if entry.options.etag
           res.setHeader('Date', entry.options.created_at.toDate().toUTCString()) if entry.options.created_at
           res.setHeader('Content-Length', entry.value.length)
+          res.setHeader('Expires', entry.options.expires_at)  if entry.options.expires_at
           res.statusCode = 200
           res.end(entry.value)
           if entry and entry.isExpired()
